@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+@layer components {
+  .memoir-word {
+    color: #1f2937;
+    display: inline-block;
+    transition: color 0.45s ease;
+  }
+
+  .memoir-word--active {
+    color: #f4f4f5;
+    transition-duration: 0.25s;
+  }
+}
