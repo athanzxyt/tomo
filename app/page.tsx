@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { PointerEvent } from "react";
+import type { PointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import memoirs from "@/data/memoirs.json";
 
@@ -233,7 +233,7 @@ export default function Home() {
   );
 
   const handlePointerMove = useCallback(
-    (memoIndex: number, event: PointerEvent<HTMLDivElement>) => {
+    (memoIndex: number, event: PointerEvent<HTMLElement>) => {
       updateHighlights(memoIndex, event.clientX, event.clientY);
     },
     [updateHighlights],
@@ -286,7 +286,7 @@ export default function Home() {
       </header>
 
       <section className="flex flex-1 flex-col justify-end px-6 pb-6 md:px-10 md:pb-10">
-        <div className="grid h-[50vh] grid-cols-1 gap-5 overflow-y-auto border-t border-white/10 pt-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid h-[75vh] grid-cols-1 gap-5 overflow-y-hidden border-t border-white/10 pt-10 sm:grid-cols-2 lg:grid-cols-4">
           {columns.map((column, memoIndex) => (
             <article
               key={column.id}
@@ -294,7 +294,7 @@ export default function Home() {
               onPointerMove={(event) => handlePointerMove(memoIndex, event)}
               onPointerLeave={() => handlePointerLeave(memoIndex)}
             >
-              <p className="text-lg font-light leading-[1.1] text-zinc-800 md:text-xl">
+              <p className="text-sm font-light leading-[1.1] text-zinc-800 md:text-base">
                 {column.words.flatMap((word, wordIndex) => {
                   const pointerActive =
                     highlighted[memoIndex]?.[wordIndex] ?? false;
@@ -305,7 +305,7 @@ export default function Home() {
                     wordIndex <= readingState.wordIndex;
                   const isActive = pointerActive || readingActive;
 
-                  const nodes = [
+                  const nodes: ReactNode[] = [
                     <span
                       key={word.id}
                       ref={(node) => {
@@ -328,8 +328,8 @@ export default function Home() {
                 })}
               </p>
               <p className="mt-8 text-sm uppercase tracking-[0.2em] text-zinc-500">
-                <span className="text-white">"{column.title}"</span>{" "}
-                <span className="italic normal-case tracking-normal">
+                <span className="block text-white">"{column.title}"</span>
+                <span className="block italic normal-case tracking-normal">
                   by {column.author}
                 </span>
               </p>
