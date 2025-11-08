@@ -253,40 +253,49 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-zinc-900 text-zinc-50">
-      <header className="flex items-center justify-between px-6 py-6 md:px-10">
-        <div className="flex items-center gap-4">
-          <Image
-            src="/tomo-logo-white.png"
-            alt="Tomo logo"
-            width={56}
-            height={56}
-            priority
-            className="h-12 w-12 rounded-lg object-cover"
-          />
-          <div className="leading-tight">
-            <p className="text-lg font-semibold uppercase tracking-[0.08em] text-white">
-              Tomo
-            </p>
-            <p className="text-sm text-zinc-400 tracking-[0.02em]">
-              Everyone Has a Story
-            </p>
+    <main className="flex min-h-screen flex-col overflow-x-hidden bg-zinc-900 text-zinc-50">
+      <section className="flex flex-col gap-10 px-6 py-8 md:px-10 md:py-12 lg:flex-row lg:gap-12">
+        <div className="flex flex-1 flex-col gap-10">
+          <div className="flex items-center gap-4">
+            <Image
+              src="/tomo-logo-white.png"
+              alt="Tomo logo"
+              width={56}
+              height={56}
+              priority
+              className="h-12 w-12 rounded-lg object-cover"
+            />
+            <div className="leading-tight">
+              <p className="text-lg font-semibold uppercase tracking-[0.08em] text-white">
+                Tomo
+              </p>
+              <p className="text-sm text-zinc-400 tracking-[0.02em]">
+                Everyone Has a Story
+              </p>
+            </div>
           </div>
+          <p className="text-xs uppercase tracking-[0.12em] text-zinc-400 sm:text-sm">
+            Call Tomo at{" "}
+            <a
+              href="tel:+14075657490"
+              className="text-yellow-500 transition hover:text-zinc-200"
+            >
+              +1 (407) 565 7490
+            </a>{" "}
+            to get started
+          </p>
         </div>
-        <p className="text-xs uppercase tracking-[0.12em] text-zinc-400 sm:text-sm">
-          Call Tomo at{" "}
-          <a
-            href="tel:+14075657490"
-            className="text-white transition hover:text-zinc-200"
-          >
-            +1 (407) 565 7490
-          </a>{" "}
-          to get started
-        </p>
-      </header>
+        <div className="flex flex-1 items-start justify-between lg:justify-end">
+          <p className="max-w-md text-sm leading-tight text-zinc-300 sm:text-base">
+            Tomo captures your quick phone updates and turns them into a living
+            memoir you can revisit anytime. We organize highlights, commitments,
+            and reflections so your story is preserved while you keep moving.
+          </p>
+        </div>
+      </section>
 
-      <section className="flex flex-1 flex-col justify-end px-6 pb-6 md:px-10 md:pb-10">
-        <div className="grid h-[75vh] grid-cols-1 gap-5 overflow-y-hidden border-t border-white/10 pt-10 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="flex flex-1 flex-col border-t border-white/10 px-6 pb-6 pt-8 md:px-10 md:pb-10">
+        <div className="grid min-h-[24rem] grid-cols-1 gap-5 overflow-y-hidden sm:grid-cols-2 lg:grid-cols-4">
           {columns.map((column, memoIndex) => (
             <article
               key={column.id}
