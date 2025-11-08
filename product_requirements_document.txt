@@ -1,4 +1,4 @@
-# Tomo — PRD v1.1
+# Tomo — PRD v1.2
 
 ## Key decisions
 
@@ -11,7 +11,42 @@
 * **Domain:** **withtomo.tech**
 * **Retention:** keep all data forever (user can delete on command)
 * **Tone:** gen-z, lowercase, multi-block, friendly + respectful
-* **Outbound calls:** **only after** explicit SMS “call”
+* **Outbound calls:** **only after** explicit SMS "call"
+
+---
+
+## Technical Stack
+
+### Backend
+* **Framework:** FastAPI (Python)
+* **API documentation:** Auto-generated via FastAPI/OpenAPI
+
+### Frontend
+* **Framework:** Next.js
+* **Purpose:** Landing page (withtomo.tech) + shareable memoir pages (`/e/{token}`)
+
+### Database & Storage
+* **Database:** Supabase (PostgreSQL)
+  * User data, moments, entries stored in PostgreSQL
+  * Row-Level Security (RLS) for multi-tenancy isolation
+  * pg_cron extension for timezone-aware scheduling
+* **Blob storage:** Supabase Storage
+  * Images (up to 10 per SMS with EXIF data preserved)
+  * Audio recordings from calls
+  * Built-in image transformations for optimization
+
+### Hosting
+* **Backend:** Digital Ocean App Platform
+* **Frontend:** Digital Ocean (or Vercel)
+* **Database:** Supabase (managed PostgreSQL + Storage)
+
+### Integrations
+* **SMS/Voice:** Twilio
+* **Voice AI:** ElevenLabs Conversational AI (native Twilio integration)
+* **LLM:** TBD (for memoir composition, moment extraction, quote detection)
+
+### Scheduling
+* **pg_cron** (via Supabase) for timezone-aware check-ins and monthly compose jobs
 
 ---
 
