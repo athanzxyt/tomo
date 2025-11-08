@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     // Assemble transient assistant (with optional overrides).
     const assistant = buildAssistant(systemContent, payload.assistantOverrides);
 
-    return NextResponse.json(assistant);
+    return NextResponse.json({ assistant });
 }
 
 function isAuthorized(req: NextRequest): boolean {
