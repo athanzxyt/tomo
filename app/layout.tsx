@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "tomo",
-  description: "phone-native autobiographer",
+  description: "Phone-native Biographer powered by AI.",
 };
 
 export default function RootLayout({

@@ -27,6 +27,19 @@
       "react": "recommended"
     }
   },
+  "overrides": [
+    {
+      "includes": ["app/api/vapi/route.ts", "lib/**/*.ts"],
+      "formatter": {
+        "indentWidth": 4
+      },
+      "javascript": {
+        "formatter": {
+          "quoteStyle": "single"
+        }
+      }
+    }
+  ],
   "assist": {
     "actions": {
       "source": {

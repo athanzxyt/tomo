@@ -1,64 +1,165 @@
+import { type NextRequest, NextResponse } from 'next/server';
+
+import { getUserById, getUserByPhone, type MinimalUser } from '@/lib/db';
+import { loadPrompt, renderTemplate } from '@/lib/prompt';
+
 export const runtime = 'nodejs';
 
-import { NextRequest, NextResponse } from 'next/server';
+type VapiMessage = {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+};
 
-/**
- * Vapi will POST conversation events here.
- * On the first assistant-request event, respond with either:
- *   - { assistantId: "..." }  // saved assistant
- *   - { assistant: { ... } }  // transient assistant (inline config)
- *
- * Keep response < ~6s for reliability.
- */
+type VapiAssistant = {
+    endCallMessage: string;
+    voicemailMessage: string;
+    firstMessage: string;
+    transcriber: { provider: string; model: string; language?: string };
+    name: string;
+    voice: { provider: string; voiceId: string };
+    model: { provider: string; model: string; messages: VapiMessage[] };
+};
+
+type VapiPayload = {
+    type?: string;
+    call?: {
+        from?: { phoneNumber?: string };
+        customer?: { number?: string };
+    };
+    assistantOverrides?: {
+        model?: { model?: string };
+        voice?: { voiceId?: string };
+        firstMessage?: string;
+    };
+};
+
+const EMPTY_USER: MinimalUser = {
+    id: '',
+    first_name: '',
+    last_name: '',
+    phone_e164: '',
+    timezone: '',
+    tone: '',
+    goals: '',
+    recent_highlights: '',
+    plan: '',
+};
+
 export async function POST(req: NextRequest) {
-    const msg = await req.json().catch(() => null);
+    // Enforce bearer secret when configured.
+    if (!isAuthorized(req)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // TODO: verify auth header against my secret for credentialId in Vapi
-    // const token = req.headers.get('authorization');
+    // Parse webhook payload; reject unknown shapes.
+    const payload = (await req.json()) as VapiPayload;
 
-    // Only build assistant on the assistant-request message; otherwise 204.
-    if (!msg || msg.type !== 'assistant-request') {
+    // Ignore events other than assistant requests.
+    if (payload.type !== 'assistant-request') {
         return new NextResponse(null, { status: 204 });
     }
 
-    // TODO: get caller info here later
-    // const caller = msg.call?.from?.phoneNumber;
+    // Personalization disabled for now: skip DB/user detection.
+    // const user = await _findUser(req, payload);
 
-    const transientAssistant = {
-        // High-level behavior
-        name: "Tomo Transient",
-        instructions:
-            "You are Tomo, a concise and friendly voice agent. " +
-            "Greet the caller by name if available, confirm purpose, and get to a helpful action fast.",
+    // Build a generic system prompt from the base instructions only.
+    const systemContent = await buildSystemPrompt(EMPTY_USER, false);
 
-        // Core Vapi pipeline components (swap providers/models as needed)
-        // Vapi orchestrates: transcriber -> model -> voice
-        transcriber: { provider: "deepgram", model: "nova-2" },
-        model: { provider: "openai", model: "gpt-4o-mini" },
-        voice: { provider: "11labs", voiceId: "your-11labs-voice-id" },
+    // Assemble transient assistant (with optional overrides).
+    const assistant = buildAssistant(systemContent, payload.assistantOverrides);
 
-        // Optional: tools the LLM can call (e.g., your own APIs)
-        tools: [
-            {
-                name: "get_user_status",
-                description: "Fetch the caller's current status from our app",
-                inputSchema: { type: "object", properties: { phone: { type: "string" } }, required: ["phone"] },
-                server: { // this mirrors a “custom tool” that calls back to THIS endpoint
-                    // Vapi will POST a function/tool call event to your Server URL; you then respond with results
-                    type: "webhook"
-                }
-            }
-        ],
+    return NextResponse.json(assistant);
+}
 
-        // Optional: variables you can inject per-call (also override-able on the /call API)
-        variableValues: { productName: "Tomo" },
+function isAuthorized(req: NextRequest): boolean {
+    const token = process.env.VAPI_WEBHOOK_BEARER;
+    if (!token) {
+        return true;
+    }
 
-        // Reasonable safety/latency defaults
-        backchanneling: true,
-        allowInterruptions: true,
-        temperature: 0.5
+    return req.headers.get('authorization') === `Bearer ${token}`;
+}
+
+async function _findUser(
+    req: NextRequest,
+    payload: VapiPayload,
+): Promise<MinimalUser | null> {
+    // Prefer explicit userId parameter.
+    const userId = req.nextUrl.searchParams.get('userId');
+
+    // Fall back to caller phone in the Vapi payload.
+    const phone =
+        payload.call?.from?.phoneNumber ??
+        payload.call?.customer?.number ??
+        null;
+
+    if (userId) {
+        const byId = await getUserById(userId);
+        if (byId) {
+            return byId;
+        }
+    }
+
+    return phone ? getUserByPhone(phone) : null;
+}
+
+async function buildSystemPrompt(
+    user: MinimalUser,
+    _hasUserContext: boolean,
+): Promise<string> {
+    // Personalization temporarily disabled: only load the base prompt.
+    const basePrompt = await loadPrompt('base.md');
+
+    // When ready to re-enable personalization, render user_template.md here.
+    // const userPrompt = await loadPrompt('user_template.md');
+    // return joinAsSystemMessage(
+    //     renderTemplate(basePrompt, { user }),
+    //     hasUserContext ? renderTemplate(userPrompt, { user }) : undefined,
+    // );
+
+    return renderTemplate(basePrompt, { user });
+}
+
+function buildAssistant(
+    systemContent: string,
+    overrides?: VapiPayload['assistantOverrides'],
+): VapiAssistant {
+    const assistant: VapiAssistant = {
+        endCallMessage: 'Talk to you soon. Take care!',
+        voicemailMessage:
+            'Just wanted to check in to see how you were doing, call me back when you get a chance.',
+        firstMessage: 'Hello.',
+        transcriber: {
+            provider: 'deepgram',
+            model: process.env.DG_MODEL || 'nova-2',
+            language: 'en',
+        },
+        name: 'Tomo',
+        voice: {
+            provider: 'vapi',
+            voiceId: process.env.VAPI_VOICE_ID || 'Hana',
+        },
+        model: {
+            provider: process.env.LLM_PROVIDER || 'google',
+            model: process.env.LLM_MODEL || 'gemini-2.5-flash-lite',
+            messages: [
+                {
+                    role: 'system',
+                    content: systemContent,
+                },
+            ],
+        },
     };
 
-    // Respond with the transient assistant (inline)
-    return NextResponse.json({ assistant: transientAssistant });
+    if (overrides?.model?.model) {
+        assistant.model.model = overrides.model.model;
+    }
+    if (overrides?.voice?.voiceId) {
+        assistant.voice.voiceId = overrides.voice.voiceId;
+    }
+    if (typeof overrides?.firstMessage === 'string') {
+        assistant.firstMessage = overrides.firstMessage;
+    }
+
+    return assistant;
 }

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import type { PointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import memoirs from "@/data/memoirs.json";
+import memoirs from "@/public/memoirs.json";
 
 const HIGHLIGHT_RADIUS = 60;
 const PAUSE_DURATION = 3200;
