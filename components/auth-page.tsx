@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { getSupabaseBrowserClient } from "@/lib/supabase-client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type Variant = "login" | "signup";
 

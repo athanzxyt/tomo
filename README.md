@@ -19,6 +19,12 @@ Vapi sends call lifecycle events to `/api/vapi`. When the payload `type` is `ass
 
 Set `VAPI_WEBHOOK_BEARER` (see `.env.example`). If the env var is present, the route enforces `Authorization: Bearer <token>`; unset means auth is skipped.
 
+### Caller identification (Supabase)
+
+`/api/vapi` now attempts to personalize the assistant by looking up the caller in `public.profiles`:
+
+The endpoint normalizes the inbound phone number (E.164) and matches it against `profiles.phone_e164`. Populate the columns listed in `lib/db.ts` (`first_name`, `last_name`, `phone_e164`, `timezone`) and set `SUPABASE_SERVICE_ROLE_KEY` so the server can issue Admin API queries. Missing env vars fall back to the non-personalized prompt.
+
 ### Vapi Server URL
 
 Point your Vapi app's Server URL to `https://<domain>/api/vapi` (or `http://localhost:3000/api/vapi` while testing).
@@ -76,4 +82,4 @@ Example response:
 
 ### Notes
 
-- DB lookups (`getUserById`, `getUserByPhone`) are currently stubs that return `null`. The webhook is structured so a real database can be wired in later without changing the response contract.
+- DB lookups now hit Supabase directly via `getUserByPhone`; if the table or env vars are missing the webhook falls back to the generic assistant prompt so calls still succeed.

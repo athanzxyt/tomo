@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { getUserById, getUserByPhone, type MinimalUser } from '@/lib/db';
-import { loadPrompt, renderTemplate } from '@/lib/prompt';
+import { getUserByPhone, type MinimalUser } from '@/lib/db';
+import { joinAsSystemMessage, loadPrompt, renderTemplate } from '@/lib/prompt';
 
 export const runtime = 'nodejs';
 
@@ -47,10 +47,6 @@ const EMPTY_USER: MinimalUser = {
     last_name: '',
     phone_e164: '',
     timezone: '',
-    tone: '',
-    goals: '',
-    recent_highlights: '',
-    plan: '',
 };
 
 export async function POST(req: NextRequest) {
@@ -79,14 +75,20 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // Personalization currently disabled; keep EMPTY_USER.
-    // const user = await _findUser(req, msg);
+    const resolvedUser = await _findUser(msg);
+    console.log('Vapi route: resolved user', resolvedUser);
+    const user = resolvedUser ?? EMPTY_USER;
 
-    // Build a generic system prompt from the base instructions only.
-    const systemContent = await buildSystemPrompt(EMPTY_USER, false);
+    const hasUserContext = Boolean(resolvedUser);
+    const systemContent = await buildSystemPrompt(user, hasUserContext);
 
     // Assemble transient assistant (use overrides from the unwrapped message)
-    const assistant = buildAssistant(systemContent, msg.assistantOverrides);
+    const assistant = buildAssistant(
+        systemContent,
+        msg.assistantOverrides,
+        user,
+        hasUserContext,
+    );
 
     return NextResponse.json({ assistant });
 }
@@ -97,57 +99,66 @@ function isAuthorized(req: NextRequest): boolean {
     return req.headers.get('authorization') === `Bearer ${token}`;
 }
 
-// Not used yet, but keep ready for when personalization is enabled.
-async function _findUser(
-    req: NextRequest,
-    payload: VapiPayload,
-): Promise<MinimalUser | null> {
-    const userId = req.nextUrl.searchParams.get('userId');
+// Look up the caller via the phone number present on the inbound event.
+async function _findUser(payload: VapiPayload): Promise<MinimalUser | null> {
     const phone =
         payload.call?.from?.phoneNumber ??
         payload.call?.customer?.number ??
         null;
 
-    if (userId) {
-        const byId = await getUserById(userId);
-        if (byId) return byId;
-    }
     return phone ? getUserByPhone(phone) : null;
 }
 
 async function buildSystemPrompt(
     user: MinimalUser,
-    _hasUserContext: boolean,
+    hasUserContext: boolean,
 ): Promise<string> {
     const basePrompt = await loadPrompt('base.md');
-    return renderTemplate(basePrompt, { user });
+    const baseContent = renderTemplate(basePrompt, { user });
+
+    if (!hasUserContext) {
+        return baseContent;
+    }
+
+    const userPrompt = await loadPrompt('user_template.md');
+    const userContent = renderTemplate(userPrompt, { user });
+    return joinAsSystemMessage(baseContent, userContent);
 }
 
 function buildAssistant(
     systemContent: string,
     overrides?: VapiPayload['assistantOverrides'],
+    user?: MinimalUser | null,
+    hasUserContext?: boolean,
 ): VapiAssistant {
+    const defaultFirstMessage = 'Hey how are you doing?';
+    const firstName = user?.first_name?.trim();
+    const personalizedGreeting =
+        hasUserContext && firstName
+            ? `Hi ${firstName}, how are you doing?`
+            : null;
+
     const assistant: VapiAssistant = {
         endCallMessage: 'Talk to you soon. Take care!',
         voicemailMessage:
             'Just wanted to check in to see how you were doing, call me back when you get a chance.',
-        firstMessage: 'Hey how are you doing?',
+        firstMessage: personalizedGreeting ?? defaultFirstMessage,
         transcriber: {
             provider: 'deepgram',
-            model: process.env.DG_MODEL || 'nova-2',
+            model: 'nova-2',
             language: 'en',
         },
         name: 'Tomo',
         voice: {
             model: 'eleven_flash_v2_5',
-            voiceId: 'aEO01A4wXwd1O8GPgGlF',
+            voiceId: '56bWURjYFHyYyVf490Dp',
             provider: '11labs',
-            stability: 0.5,
-            similarityBoost: 0.75,
+            stability: 0.70,
+            similarityBoost: 0.80,
         },
         model: {
-            provider: process.env.LLM_PROVIDER || 'google',
-            model: process.env.LLM_MODEL || 'gemini-2.5-flash-lite',
+            provider: 'google',
+            model: 'gemini-2.5-flash-lite',
             messages: [{ role: 'system', content: systemContent }],
         },
     };
