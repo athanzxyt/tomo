@@ -1,105 +1,37 @@
-# tomo landing
+## Inspiration
 
-Minimal Next.js (App Router) site for the tomo landing page plus the Tomo and Vapi webhook.
+A few years ago I fell in love with memoirs. Steve Jobs by Walter Isaacson showed me how a life can be rendered with clarity and depth; Skunk Works by Ben Rich revealed a person and a company evolving together. That intimacy of memory (how a biographer follows, notices, and stitches meaning over time) became the spark for Tomo.
 
-## Development
+As I’ve gotten older, I’ve realized I don’t remember past events as vividly. I wanted a companion that remembers with me: human and friendly, not a watcher; someone you want to talk to who grows alongside your life. Tomo is that idea, an always-there biographer that learns over time, without needing to hire a human to keep your story.
 
-```bash
-npm install
-npm run dev
-```
+## What it does
 
-Open `http://localhost:3000` to view the landing page. Edit `app/page.tsx` to adjust the copy or styling.
+Tomo captures your quick phone updates and turns them into a living memoir you can revisit anytime. It organizes highlights, commitments, and reflections so your story stays vivid while you keep moving. Voice-first and personable, Tomo checks in like a friend, remembers what mattered last time, and weaves those moments into simple monthly diary entries. Our slogan: “Everyone Has a Story.”
 
-## Vapi Webhook (`POST /api/vapi`)
+## How we built it
 
-Vapi sends call lifecycle events to `/api/vapi`. When the payload `type` is `assistant-request`, the route responds with a transient assistant document (no wrapping object) that merges the base prompt with the per-user template.
+- Voice-native Agent Loop: We used Vapi for telephony/barge-in to manage the actual voice of Tomo. We then used ElevenLabs for low-latency yet expressive TTS.
+- Transient Per-call Agents: Every inbound call spins up a fresh assistant hydrated with the caller’s latest context with stateless infra, highly personal behavior.
+- LLM Brain: Gemini runs modular prompts (opener > extractor > memoir composer) with strict JSON specs to prevent drift. We use this brain to manage short and long term memory for Tomo.
+- Data and API: We used Next.js API to build our webhooks with Supabase for auth, storage, and edge functions.
+- UI/UX: We used Next.js, Tailwind, Shadcn/ui, and Typescript.
 
-### Authentication
+## Challenges we ran into
 
-Set `VAPI_WEBHOOK_BEARER` (see `.env.example`). If the env var is present, the route enforces `Authorization: Bearer <token>`; unset means auth is skipped.
+- Unable to register SMS agents
+- Getting the memory management to properly detect salient thoughts
+- Properly handling voice agent-loop
+- Making the voice assistant feel human (speaking too much, cutting off mid-thought)
+- Keeping personas stable across interuptions.
 
-### Caller identification (Supabase)
+## Accomplishments that we're proud of
 
-`/api/vapi` now attempts to personalize the assistant by looking up the caller in `public.profiles`:
+- Truly personalized voice agents that have a brain and memory for each user.
+- Getting the end-to-end pipeline of call > transcrption > extraction > short term memory > long term memory > memoir working
+- Voice UX and Visual App UI feel really clean and there isn't terrible latency.
 
-The endpoint normalizes the inbound phone number (E.164) and matches it against `profiles.phone_e164`. Populate the columns listed in `lib/db.ts` (`first_name`, `last_name`, `phone_e164`, `timezone`) and set `SUPABASE_SERVICE_ROLE_KEY` so the server can issue Admin API queries. Missing env vars fall back to the non-personalized prompt.
+## What's next for Tomo
 
-### Call completion logging
-
-When Vapi sends one of the completion events (`call-finished`, `call.completed`, or `call-ended`), the webhook looks up the corresponding profile (via phone number) and persists the record to `public.call_logs`. The following fields are written:
-
-- `profile_id` (FK → `public.profiles.id`)
-- `started_at` (ISO timestamp; defaults to the event payload time)
-- `duration_sec` (best effort from the Vapi payload)
-- `audio_url` (recording URL when available)
-- `transcript` (flattened text transcript when provided)
-
-When a transcript is available, we also summarize follow-up topics into `conversation_notes` so Tomo can reference them during future calls.
-
-### Moments extraction
-
-After each call finishes, Tomo uses the same Gemini model to look at the latest three transcripts and capture notable life moments. The resulting summaries are stored in the `moments` table with an inferred `period_year`/`period_month`, unless Gemini decides there are no new moments worth recording.
-
-### Gemini conversation notes
-
-Set `GEMINI_API_KEY` to enable the Gemini-powered summarization that populates `conversation_notes`. If this env var is missing, calls still succeed but no notes are created.
-
-### Vapi Server URL
-
-Point your Vapi app's Server URL to `https://<domain>/api/vapi` (or `http://localhost:3000/api/vapi` while testing).
-
-### Example
-
-```bash
-curl -X POST http://localhost:3000/api/vapi \
-  -H "Authorization: Bearer supersecrettoken" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type":"assistant-request",
-    "call": { "from": { "phoneNumber":"+15551234567" } },
-    "assistantOverrides": {
-      "model": { "model": "gemini-2.5-flash-lite" },
-      "voice": { "voiceId": "Hana" },
-      "firstMessage": "Hello."
-    }
-  }'
-```
-
-Example response:
-
-```json
-{
-  "updatedAt": "2025-11-08T21:27:20.293Z",
-  "createdAt": "2025-11-08T06:02:25.017Z",
-  "orgId": "b7d123a2-6151-4765-89bb-5c11104311de",
-  "id": "4c35aaab-2d8b-4556-b753-870b8d317ef6",
-  "endCallMessage": "Goodbye.",
-  "voicemailMessage": "Please call back when you're available.",
-  "firstMessage": "Hello.",
-  "transcriber": {
-    "model": "nova-2",
-    "provider": "deepgram",
-    "language": "en"
-  },
-  "name": "Tomo",
-  "voice": {
-    "voiceId": "Hana",
-    "provider": "vapi"
-  },
-  "model": {
-    "model": "gemini-2.5-flash-lite",
-    "provider": "google",
-    "messages": [
-      {
-        "content": "Your name is Tomo. You are a memoir writer, follower, and friend.",
-        "role": "system"
-      }
-    ]
-  }
-}
-```
-
-### Notes
-
-- DB lookups now hit Supabase directly via `getUserByPhone`; if the table or env vars are missing the webhook falls back to the generic assistant prompt so calls still succeed.
+- Scheduled outbound calls (Tomo will check in on you!)
+- SMS (text Tomo instead)
+- Upload Images (scrapbooking too instead of just diarying)
