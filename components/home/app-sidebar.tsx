@@ -17,8 +17,8 @@ import {
 
 const views = [
   { label: "Calls", value: "calls" },
-  { label: "Entries", value: "entries" },
   { label: "Moments", value: "moments" },
+  { label: "Entries", value: "entries" },
 ] as const;
 
 export type ViewValue = (typeof views)[number]["value"];

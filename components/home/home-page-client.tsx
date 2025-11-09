@@ -1,10 +1,13 @@
 "use client";
 
 import { Pause, Play } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { AppSidebar, type ViewValue } from "@/components/home/app-sidebar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -22,42 +25,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { CallLogRecord, MomentRecord } from "@/lib/db";
+import { Textarea } from "@/components/ui/textarea";
+import type { CallLogRecord, EntryRecord, MomentRecord } from "@/lib/db";
+import {
+  generateEntryAction,
+  updateEntryAction,
+} from "@/server/actions/entries";
 
-const entries = [
-  {
-    id: "entry-1",
-    title: "Sunday Reflections",
-    status: "Draft",
-    excerpt:
-      "Walked along Lake Eola and felt grateful for the quiet moments...",
-  },
-  {
-    id: "entry-2",
-    title: "Call with Dad",
-    status: "Published",
-    excerpt: "Captured his story about moving to the city with one suitcase...",
-  },
-  {
-    id: "entry-3",
-    title: "Commitments",
-    status: "Published",
-    excerpt: "Re-committed to recording Tuesday and Thursday mornings.",
-  },
-];
+type HomePageClientProps = {
+  calls: CallLogRecord[];
+  moments: MomentRecord[];
+  entries: EntryRecord[];
+  initialView?: ViewValue;
+  initialEntryId?: string | null;
+  showEntryDetail?: boolean;
+};
 
 export default function HomePageClient({
   calls,
   moments,
-}: {
-  calls: CallLogRecord[];
-  moments: MomentRecord[];
-}) {
-  const [activeView, setActiveView] = useState<ViewValue>("calls");
-  let panel = <CallsPanel calls={calls} />;
+  entries,
+  initialView = "calls",
+  initialEntryId = null,
+  showEntryDetail = false,
+}: HomePageClientProps) {
+  const [activeView, setActiveView] = useState<ViewValue>(initialView);
+
+  useEffect(() => {
+    setActiveView(initialView);
+  }, [initialView]);
+
+  let panel: ReactNode = <CallsPanel calls={calls} />;
 
   if (activeView === "entries") {
-    panel = <EntriesPanel />;
+    panel = (
+      <EntriesPanel
+        entries={entries}
+        initialEntryId={initialEntryId}
+        showDetail={showEntryDetail}
+      />
+    );
   } else if (activeView === "moments") {
     panel = <MomentsPanel moments={moments} />;
   }
@@ -124,28 +131,243 @@ function CallsPanel({ calls }: { calls: CallLogRecord[] }) {
   );
 }
 
-function EntriesPanel() {
+type EntriesPanelProps = {
+  entries: EntryRecord[];
+  initialEntryId?: string | null;
+  showDetail: boolean;
+};
+
+function EntriesPanel({
+  entries,
+  initialEntryId,
+  showDetail,
+}: EntriesPanelProps) {
+  const router = useRouter();
+  const [entryList, setEntryList] = useState(entries);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(
+    showDetail ? (initialEntryId ?? null) : null,
+  );
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftBody, setDraftBody] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isGenerating, startGenerating] = useTransition();
+  const [isSaving, startSaving] = useTransition();
+
+  useEffect(() => {
+    setEntryList(entries);
+  }, [entries]);
+
+  useEffect(() => {
+    setSelectedEntryId(showDetail ? (initialEntryId ?? null) : null);
+  }, [initialEntryId, showDetail]);
+
+  const selectedEntry = useMemo(() => {
+    if (!showDetail) {
+      return null;
+    }
+    return entryList.find((entry) => entry.id === selectedEntryId) ?? null;
+  }, [entryList, selectedEntryId, showDetail]);
+
+  useEffect(() => {
+    setDraftTitle(selectedEntry?.title ?? "");
+    setDraftBody(selectedEntry?.body ?? "");
+    setIsEditing(false);
+  }, [selectedEntry]);
+
+  const handleGenerate = () => {
+    setActionError(null);
+    startGenerating(async () => {
+      const result = await generateEntryAction();
+      if (!result.success) {
+        setActionError(resolveEntryActionError(result.error));
+        return;
+      }
+
+      setEntryList((prev) => {
+        const filtered = prev.filter((entry) => entry.id !== result.entry.id);
+        return [result.entry, ...filtered];
+      });
+      setSelectedEntryId(result.entry.id);
+      router.push(`/home/entries/${result.entry.id}`);
+    });
+  };
+
+  const handleSave = () => {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setActionError(null);
+    startSaving(async () => {
+      const result = await updateEntryAction({
+        entryId: selectedEntry.id,
+        title: draftTitle,
+        body: draftBody,
+      });
+
+      if (!result.success) {
+        setActionError(resolveEntryActionError(result.error));
+        return;
+      }
+
+      setEntryList((prev) =>
+        prev.map((entry) =>
+          entry.id === result.entry.id ? result.entry : entry,
+        ),
+      );
+      setIsEditing(false);
+    });
+  };
+
+  const handleResetDraft = () => {
+    setDraftTitle(selectedEntry?.title ?? "");
+    setDraftBody(selectedEntry?.body ?? "");
+    setIsEditing(false);
+  };
+
+  const handleBackToList = () => {
+    setSelectedEntryId(null);
+    setIsEditing(false);
+    router.push("/home?view=entries");
+  };
+
+  const renderList = () => {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-4 shadow-inner shadow-black/30">
+          {entryList.length ? (
+            <div className="divide-y divide-white/5">
+              {entryList.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className="flex w-full flex-col gap-1 py-3 text-left transition hover:text-white"
+                  onClick={() => router.push(`/home/entries/${entry.id}`)}
+                >
+                  <span className="font-serif text-lg font-semibold text-white">
+                    {entry.title || "Untitled entry"}
+                  </span>
+                  <span className="text-xs uppercase tracking-wide text-white/60">
+                    {formatMomentPeriod(entry.period_year, entry.period_month)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-300">
+              No entries yet. Generate your first memoir chapter to begin.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDetail = () => {
+    if (!selectedEntry) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            className="border border-white/30 bg-transparent text-white/70 hover:border-white/40 hover:bg-white/5 hover:text-white"
+            onClick={handleBackToList}
+          >
+            Back to entries
+          </Button>
+          {!isEditing ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsEditing(true)}
+            >
+              Edit
+            </Button>
+          ) : null}
+        </div>
+
+        <div className="space-y-2">
+          {isEditing ? (
+            <Input
+              id="entry-title"
+              value={draftTitle}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              className="border-white/20 bg-transparent text-3xl font-semibold text-white font-serif"
+            />
+          ) : (
+            <h2 className="font-serif text-4xl font-semibold text-white">
+              {selectedEntry.title || "Untitled entry"}
+            </h2>
+          )}
+          <p className="text-sm text-white/60">
+            {formatMomentPeriod(
+              selectedEntry.period_year,
+              selectedEntry.period_month,
+            )}
+          </p>
+        </div>
+
+        {isEditing ? (
+          <Textarea
+            id="entry-body"
+            value={draftBody}
+            onChange={(event) => setDraftBody(event.target.value)}
+            className="min-h-[360px] border-white/20 bg-transparent text-base text-white font-serif leading-relaxed"
+          />
+        ) : (
+          <div className="whitespace-pre-wrap font-serif text-lg leading-relaxed text-white/90">
+            {selectedEntry.body}
+          </div>
+        )}
+
+        {isEditing ? (
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-black text-white hover:bg-black/80"
+            >
+              {isSaving ? "Saving..." : "Save changes"}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleResetDraft}
+              disabled={isSaving}
+              className="bg-black text-white hover:bg-black/80"
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold text-white">Entries</h1>
-      <div className="grid gap-4 md:grid-cols-2">
-        {entries.map((entry) => (
-          <article
-            key={entry.id}
-            className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5 shadow-inner shadow-black/30"
+      {!showDetail || !selectedEntry ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-semibold text-white">Entries</h1>
+          <Button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="ml-auto border-white/20 bg-white/10 text-white hover:bg-white/20"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-base font-semibold text-white">
-                {entry.title}
-              </p>
-              <span className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
-                {entry.status}
-              </span>
-            </div>
-            <p className="mt-3 text-sm text-zinc-300">{entry.excerpt}</p>
-          </article>
-        ))}
-      </div>
+            {isGenerating ? "Generating..." : "Generate Entry"}
+          </Button>
+        </div>
+      ) : null}
+      {actionError ? (
+        <p className="text-sm text-rose-300">{actionError}</p>
+      ) : null}
+      {showDetail && selectedEntry ? renderDetail() : renderList()}
     </section>
   );
 }
@@ -412,4 +634,21 @@ function parseTranscript(transcript: string) {
       return { speaker, message };
     })
     .filter((entry) => entry.message);
+}
+
+function resolveEntryActionError(code: string) {
+  switch (code) {
+    case "no-transcripts":
+      return "Not enough recent calls to craft a memoir chapter.";
+    case "body-required":
+      return "Memoir body cannot be empty.";
+    case "profile-missing":
+      return "No profile found for memoir generation.";
+    case "entry-not-found":
+      return "Entry was not found. Refresh and try again.";
+    case "persist-failed":
+      return "We couldn't save the entry. Please try again.";
+    default:
+      return "Something went wrong while saving. Please try again.";
+  }
 }

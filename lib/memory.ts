@@ -12,10 +12,12 @@ import { loadPrompt } from '@/lib/prompt';
 const MODEL_NAME = 'gemini-2.5-flash';
 const MAX_NOTE_TRANSCRIPT_CHARS = 2000;
 const MAX_MOMENT_TRANSCRIPT_CHARS = 2500;
+const MAX_MEMOIR_TRANSCRIPT_CHARS = 3500;
 let cachedModel: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null =
     null;
 let cachedConversationNotePrompt: string | null = null;
 let cachedMomentsPrompt: string | null = null;
+let cachedMemoirEntryPrompt: string | null = null;
 
 type GenerateResponse = Awaited<
     ReturnType<ReturnType<typeof getModel>['generateContent']>
@@ -398,4 +400,102 @@ export async function createMomentsFromCall({
         callLogId,
         inserted,
     });
+}
+
+export type MemoirEntryDraft = {
+    title: string;
+    body: string;
+};
+
+export async function generateMemoirEntryFromCalls(
+    profileId: string,
+): Promise<MemoirEntryDraft | null> {
+    if (!profileId) {
+        return null;
+    }
+
+    const transcripts = await getRecentCallTranscripts(profileId, 5);
+    const cleaned = transcripts
+        .map((entry, index) => ({
+            label: `Call ${index + 1} (started ${entry.startedAt})`,
+            transcript: truncateText(
+                entry.transcript,
+                MAX_MEMOIR_TRANSCRIPT_CHARS,
+            ),
+        }))
+        .filter((entry) => entry.transcript?.trim());
+
+    if (!cleaned.length) {
+        return null;
+    }
+
+    try {
+        const model = getModel();
+        const prompt = await getMemoirEntryPrompt();
+        const transcriptBlock = cleaned
+            .map((entry) => `${entry.label}:\n${entry.transcript}`)
+            .join('\n\n');
+
+        const result = await model.generateContent({
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        {
+                            text: `${prompt}\n\nCall transcripts:\n${transcriptBlock}`,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const text = resolveResponseText(result.response);
+        if (!text) {
+            console.log('[memory] Memoir entry candidates missing text', {
+                candidates: result.response.candidates ?? null,
+            });
+            return null;
+        }
+
+        return parseMemoirEntryResponse(text);
+    } catch (error) {
+        console.error('[gemini] Failed to generate memoir entry', error);
+        return null;
+    }
+}
+
+function parseMemoirEntryResponse(text: string): MemoirEntryDraft | null {
+    const normalized = text.replace(/```json|```/g, '').trim();
+    if (!normalized) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(normalized) as {
+            title?: unknown;
+            body?: unknown;
+        };
+        const title =
+            typeof parsed.title === 'string' ? parsed.title.trim() : '';
+        const body = typeof parsed.body === 'string' ? parsed.body.trim() : '';
+        if (!body) {
+            return null;
+        }
+        return {
+            title: title || 'Untitled entry',
+            body,
+        };
+    } catch (error) {
+        console.error('[gemini] Failed to parse memoir entry', error);
+        return null;
+    }
+}
+
+async function getMemoirEntryPrompt(): Promise<string> {
+    if (cachedMemoirEntryPrompt) {
+        return cachedMemoirEntryPrompt;
+    }
+
+    cachedMemoirEntryPrompt = await loadPrompt('memoir-entry.md');
+    return cachedMemoirEntryPrompt;
 }

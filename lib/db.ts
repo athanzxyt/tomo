@@ -15,6 +15,11 @@ type CallLogRow = {
     duration_sec: number | null;
     audio_url: string | null;
     transcript: string | null;
+    profile_id?: string | null;
+};
+
+type CallProfileRow = {
+    profile_id: string | null;
 };
 
 const PROFILE_FIELDS: Array<keyof MinimalUser> = [
@@ -41,6 +46,7 @@ export type CallLogRecord = {
     durationSec: number | null;
     audioUrl: string;
     transcript: string;
+    profileId?: string;
 };
 
 export type ConversationNoteInput = {
@@ -407,5 +413,264 @@ export async function insertMoments(moments: MomentInput[]): Promise<boolean> {
     } catch (error) {
         console.error('[db] Unexpected error inserting moments', error);
         return false;
+    }
+}
+
+type EntryRow = {
+    id: string | null;
+    profile_id: string | null;
+    period_year: number | null;
+    period_month: number | null;
+    title: string | null;
+    body: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+};
+
+export type EntryRecord = {
+    id: string;
+    profile_id: string;
+    period_year: number;
+    period_month: number;
+    title: string;
+    body: string;
+    created_at: string;
+    updated_at: string;
+};
+
+function mapEntryRow(row: EntryRow): EntryRecord {
+    return {
+        id: row.id ?? '',
+        profile_id: row.profile_id ?? '',
+        period_year: row.period_year ?? new Date().getUTCFullYear(),
+        period_month: row.period_month ?? new Date().getUTCMonth() + 1,
+        title: row.title?.trim() || 'Untitled entry',
+        body: row.body ?? '',
+        created_at: row.created_at ?? new Date().toISOString(),
+        updated_at: row.updated_at ?? new Date().toISOString(),
+    };
+}
+
+export async function getEntriesForProfile(
+    profileId: string,
+    limit = 24,
+): Promise<EntryRecord[]> {
+    if (!profileId) {
+        return [];
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('entries')
+            .select(
+                'id, profile_id, period_year, period_month, title, body, created_at, updated_at',
+            )
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            console.error('[db] Failed to load entries', error);
+            return [];
+        }
+
+        return ((data as EntryRow[] | null) ?? []).map(mapEntryRow);
+    } catch (error) {
+        console.error('[db] Unexpected error loading entries', error);
+        return [];
+    }
+}
+
+export async function getEntryForProfile(
+    profileId: string,
+    entryId: string,
+): Promise<EntryRecord | null> {
+    if (!profileId || !entryId) {
+        return null;
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('entries')
+            .select(
+                'id, profile_id, period_year, period_month, title, body, created_at, updated_at',
+            )
+            .eq('profile_id', profileId)
+            .eq('id', entryId)
+            .maybeSingle();
+
+        if (error) {
+            console.error('[db] Failed to load entry', { entryId, error });
+            return null;
+        }
+
+        if (!data) {
+            return null;
+        }
+
+        return mapEntryRow(data as EntryRow);
+    } catch (error) {
+        console.error('[db] Unexpected error loading entry', error);
+        return null;
+    }
+}
+
+export async function getLatestEntries(limit = 24): Promise<EntryRecord[]> {
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('entries')
+            .select(
+                'id, profile_id, period_year, period_month, title, body, created_at, updated_at',
+            )
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            console.error('[db] Failed to load latest entries', error);
+            return [];
+        }
+
+        return ((data as EntryRow[] | null) ?? []).map(mapEntryRow);
+    } catch (error) {
+        console.error('[db] Unexpected error loading latest entries', error);
+        return [];
+    }
+}
+
+export async function getEntryById(
+    entryId: string,
+): Promise<EntryRecord | null> {
+    if (!entryId) {
+        return null;
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('entries')
+            .select(
+                'id, profile_id, period_year, period_month, title, body, created_at, updated_at',
+            )
+            .eq('id', entryId)
+            .maybeSingle();
+
+        if (error) {
+            console.error('[db] Failed to load entry by id', {
+                entryId,
+                error,
+            });
+            return null;
+        }
+
+        if (!data) {
+            return null;
+        }
+
+        return mapEntryRow(data as EntryRow);
+    } catch (error) {
+        console.error('[db] Unexpected error loading entry by id', error);
+        return null;
+    }
+}
+
+type UpsertEntryInput = {
+    profile_id: string;
+    period_year: number;
+    period_month: number;
+    title: string;
+    body: string;
+};
+
+export async function upsertEntry(
+    entry: UpsertEntryInput,
+): Promise<EntryRecord | null> {
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('entries')
+            .upsert(entry, {
+                onConflict: 'profile_id,period_year,period_month',
+            })
+            .select(
+                'id, profile_id, period_year, period_month, title, body, created_at, updated_at',
+            )
+            .single();
+
+        if (error) {
+            console.error('[db] Failed to upsert entry', error);
+            return null;
+        }
+
+        return mapEntryRow(data as EntryRow);
+    } catch (error) {
+        console.error('[db] Unexpected error upserting entry', error);
+        return null;
+    }
+}
+
+type UpdateEntryInput = {
+    id: string;
+    profile_id: string;
+    title: string;
+    body: string;
+};
+
+export async function updateEntryContent(
+    entry: UpdateEntryInput,
+): Promise<EntryRecord | null> {
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('entries')
+            .update({
+                title: entry.title,
+                body: entry.body,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', entry.id)
+            .eq('profile_id', entry.profile_id)
+            .select(
+                'id, profile_id, period_year, period_month, title, body, created_at, updated_at',
+            )
+            .single();
+
+        if (error) {
+            console.error('[db] Failed to update entry', error);
+            return null;
+        }
+
+        return mapEntryRow(data as EntryRow);
+    } catch (error) {
+        console.error('[db] Unexpected error updating entry', error);
+        return null;
+    }
+}
+
+export async function getLatestCallProfileId(): Promise<string | null> {
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('call_logs')
+            .select('profile_id')
+            .not('profile_id', 'is', null)
+            .order('started_at', { ascending: false })
+            .limit(1);
+
+        if (error) {
+            console.error('[db] Failed to read latest call profile', error);
+            return null;
+        }
+
+        const row = (data as CallProfileRow[] | null)?.[0];
+        return row?.profile_id ?? null;
+    } catch (error) {
+        console.error(
+            '[db] Unexpected error reading latest call profile',
+            error,
+        );
+        return null;
     }
 }
