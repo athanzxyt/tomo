@@ -25,6 +25,16 @@ Set `VAPI_WEBHOOK_BEARER` (see `.env.example`). If the env var is present, the r
 
 The endpoint normalizes the inbound phone number (E.164) and matches it against `profiles.phone_e164`. Populate the columns listed in `lib/db.ts` (`first_name`, `last_name`, `phone_e164`, `timezone`) and set `SUPABASE_SERVICE_ROLE_KEY` so the server can issue Admin API queries. Missing env vars fall back to the non-personalized prompt.
 
+### Call completion logging
+
+When Vapi sends one of the completion events (`call-finished`, `call.completed`, or `call-ended`), the webhook looks up the corresponding profile (via phone number) and persists the record to `public.call_logs`. The following fields are written:
+
+- `profile_id` (FK → `public.profiles.id`)
+- `started_at` (ISO timestamp; defaults to the event payload time)
+- `duration_sec` (best effort from the Vapi payload)
+- `audio_url` (recording URL when available)
+- `transcript` (flattened text transcript when provided)
+
 ### Vapi Server URL
 
 Point your Vapi app's Server URL to `https://<domain>/api/vapi` (or `http://localhost:3000/api/vapi` while testing).

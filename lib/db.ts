@@ -20,6 +20,14 @@ const PROFILE_FIELDS: Array<keyof MinimalUser> = [
 
 const PROFILE_COLUMNS = PROFILE_FIELDS.join(', ');
 
+export type CallLogInput = {
+    profile_id: string;
+    started_at: string;
+    duration_sec: number | null;
+    audio_url: string;
+    transcript: string;
+};
+
 export async function getUserByPhone(
     phoneInput: string,
 ): Promise<MinimalUser | null> {
@@ -81,4 +89,19 @@ function mapProfileRow(row: ProfileRow): MinimalUser {
         phone_e164: row.phone_e164 ?? '',
         timezone: row.timezone ?? '',
     };
+}
+
+export async function insertCallLog(log: CallLogInput): Promise<boolean> {
+    try {
+        const client = getSupabaseServerClient();
+        const { error } = await client.from('call_logs').insert([log]);
+        if (error) {
+            console.error('[db] Failed to insert call log', { error });
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('[db] Unexpected error inserting call log', error);
+        return false;
+    }
 }
