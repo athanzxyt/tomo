@@ -53,12 +53,31 @@ type ConversationNoteRow = {
     content: string | null;
 };
 
+type CallTranscriptRow = {
+    id: string | null;
+    started_at: string | null;
+    transcript: string | null;
+};
+
+type MomentRow = {
+    id: string;
+    period_year: number;
+    period_month: number;
+    summary: string;
+};
+
 export async function getUserByPhone(
     phoneInput: string,
 ): Promise<MinimalUser | null> {
     const phone = normalizePhone(phoneInput);
     return phone ? fetchProfileByPhone(phone) : null;
 }
+
+export type CallTranscriptRecord = {
+    callLogId: string | null;
+    startedAt: string;
+    transcript: string;
+};
 
 function normalizePhone(rawPhone: string): string | null {
     if (!rawPhone) {
@@ -230,5 +249,134 @@ export async function getRecentConversationNotes(
             error,
         );
         return [];
+    }
+}
+
+export async function getRecentCallTranscripts(
+    profileId: string,
+    limit = 2,
+): Promise<CallTranscriptRecord[]> {
+    if (!profileId) {
+        return [];
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('call_logs')
+            .select('id, started_at, transcript')
+            .eq('profile_id', profileId)
+            .not('transcript', 'is', null)
+            .order('started_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            console.error('[db] Failed to load call transcripts', error);
+            return [];
+        }
+
+        const rows = (data as CallTranscriptRow[] | null) ?? [];
+        return rows
+            .map((row) => ({
+                callLogId: row.id,
+                startedAt: row.started_at ?? new Date().toISOString(),
+                transcript: row.transcript ?? '',
+            }))
+            .filter((entry) => entry.transcript.trim());
+    } catch (error) {
+        console.error('[db] Unexpected error loading call transcripts', error);
+        return [];
+    }
+}
+
+export type MomentRecord = {
+    id: string;
+    period_year: number;
+    period_month: number;
+    summary: string;
+};
+
+export type MomentInput = {
+    profile_id: string;
+    call_log_id?: string | null;
+    period_year: number;
+    period_month: number;
+    summary: string;
+};
+
+export async function getRecentMoments(
+    profileId: string,
+    limit = 5,
+): Promise<MomentRecord[]> {
+    if (!profileId) {
+        return [];
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('moments')
+            .select('id, period_year, period_month, summary')
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            console.error('[db] Failed to load moments', error);
+            return [];
+        }
+
+        const rows = (data as MomentRow[] | null) ?? [];
+        return rows.map((row) => ({
+            id: row.id,
+            period_year: row.period_year,
+            period_month: row.period_month,
+            summary: row.summary,
+        }));
+    } catch (error) {
+        console.error('[db] Unexpected error loading moments', error);
+        return [];
+    }
+}
+
+export async function insertMoments(moments: MomentInput[]): Promise<boolean> {
+    if (!moments.length) {
+        return false;
+    }
+
+    const sanitized = moments
+        .map((moment) => ({
+            profile_id: moment.profile_id,
+            call_log_id: moment.call_log_id ?? null,
+            period_year: moment.period_year,
+            period_month: moment.period_month,
+            summary: moment.summary.trim(),
+        }))
+        .filter(
+            (moment) =>
+                moment.summary &&
+                Number.isInteger(moment.period_year) &&
+                Number.isInteger(moment.period_month) &&
+                moment.period_year >= 2000 &&
+                moment.period_year <= 2100 &&
+                moment.period_month >= 1 &&
+                moment.period_month <= 12,
+        );
+
+    if (!sanitized.length) {
+        return false;
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { error } = await client.from('moments').insert(sanitized);
+        if (error) {
+            console.error('[db] Failed to insert moments', error);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('[db] Unexpected error inserting moments', error);
+        return false;
     }
 }

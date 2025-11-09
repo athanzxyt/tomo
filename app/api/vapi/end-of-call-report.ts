@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { createConversationNoteFromTranscript } from "@/lib/conversation-notes";
 import { type CallLogInput, insertCallLog } from "@/lib/db";
+import {
+  createConversationNoteFromTranscript,
+  createMomentsFromCall,
+} from "@/lib/memory";
 
 import type { VapiCall, VapiConversationTurn, VapiPayload } from "./types";
 import { findUserByCall } from "./user";
@@ -32,6 +35,13 @@ export async function handleEndOfCallReport(payload: VapiPayload) {
     profileId: user.id,
     callLogId: callLogId ?? undefined,
     transcript: logPayload.transcript,
+  });
+
+  await createMomentsFromCall({
+    profileId: user.id,
+    callLogId: callLogId ?? undefined,
+    currentTranscript: logPayload.transcript,
+    currentStartedAt: logPayload.started_at,
   });
 
   return NextResponse.json({ ok: true });

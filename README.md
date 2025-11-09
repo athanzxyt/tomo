@@ -37,6 +37,10 @@ When Vapi sends one of the completion events (`call-finished`, `call.completed`,
 
 When a transcript is available, we also summarize follow-up topics into `conversation_notes` so Tomo can reference them during future calls.
 
+### Moments extraction
+
+After each call finishes, Tomo uses the same Gemini model to look at the latest three transcripts and capture notable life moments. The resulting summaries are stored in the `moments` table with an inferred `period_year`/`period_month`, unless Gemini decides there are no new moments worth recording.
+
 ### Gemini conversation notes
 
 Set `GEMINI_API_KEY` to enable the Gemini-powered summarization that populates `conversation_notes`. If this env var is missing, calls still succeed but no notes are created.

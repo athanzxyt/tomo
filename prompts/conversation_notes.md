@@ -9,10 +9,10 @@ Summarize only concrete facts about the user that Tomo should remember or follow
 
 Rules:
 
-1. **Write 1–2 short sentences** (max ~60 words total) in plain text.
+1. **Always write 1–2 short sentences** (max ~60 words total) in plain text, even if you must rephrase a small detail.
 2. Speak **only about the user**; never mention Tomo, the call, or that questions were asked.
 3. Use declarative statements (“Athan flies to Chicago tomorrow for their brother’s wedding”).
-4. As long as there is content, you should remember something about this conversation, even if its mundane like "I am going to get dinner with my friends soon."
+4. Never emit an empty string—summarize whatever specific fact is most concrete.
 5. Do not write advice, commentary, or instructions—just the user’s facts.
 
 Output must be ready to paste directly into a memory log without editing.

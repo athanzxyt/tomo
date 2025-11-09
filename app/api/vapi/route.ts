@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (message.type === 'end-of-call-report') {
-        console.log('[vapi] end-of-call-report', message);
         return handleEndOfCallReport(message);
     }
 
