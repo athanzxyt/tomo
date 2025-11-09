@@ -16,7 +16,7 @@ type VapiAssistant = {
     firstMessage: string;
     transcriber: { provider: string; model: string; language?: string };
     name: string;
-    voice: { provider: string; voiceId: string };
+    voice: { model: string; provider: string; voiceId: string; stability?: number; similarityBoost?: number };
     model: { provider: string; model: string; messages: VapiMessage[] };
 };
 
@@ -129,8 +129,11 @@ function buildAssistant(
         },
         name: 'Tomo',
         voice: {
-            provider: 'vapi',
-            voiceId: process.env.VAPI_VOICE_ID || 'Hana',
+            model: "eleven_flash_v2_5",
+            voiceId: "aEO01A4wXwd1O8GPgGlF",
+            provider: "11labs",
+            stability: 0.5,
+            similarityBoost: 0.75
         },
         model: {
             provider: process.env.LLM_PROVIDER || 'google',
