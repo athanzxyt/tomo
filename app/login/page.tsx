@@ -1,11 +1,13 @@
 import { AuthPage } from "@/components/auth-page";
 
 type LoginPageProps = {
-  searchParams: {
-    status?: string;
-  };
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default function LoginPage({ searchParams }: LoginPageProps) {
-  return <AuthPage variant="login" statusParam={searchParams?.status} />;
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const resolvedParams = await searchParams;
+  const statusValue = resolvedParams.status;
+  const status = Array.isArray(statusValue) ? statusValue[0] : statusValue;
+
+  return <AuthPage variant="login" statusParam={status} />;
 }

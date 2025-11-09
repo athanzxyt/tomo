@@ -74,7 +74,7 @@ async function fetchProfileByPhone(phone: string): Promise<MinimalUser | null> {
             return null;
         }
 
-        return mapProfileRow(data);
+        return mapProfileRow(data as ProfileRow);
     } catch (error) {
         console.error('[db] Unexpected Supabase error', error);
         return null;
