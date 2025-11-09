@@ -16,7 +16,13 @@ type VapiAssistant = {
     firstMessage: string;
     transcriber: { provider: string; model: string; language?: string };
     name: string;
-    voice: { model: string; provider: string; voiceId: string; stability?: number; similarityBoost?: number };
+    voice: {
+        model: string;
+        provider: string;
+        voiceId: string;
+        stability?: number;
+        similarityBoost?: number;
+    };
     model: { provider: string; model: string; messages: VapiMessage[] };
 };
 
@@ -56,7 +62,11 @@ export async function POST(req: NextRequest) {
     // --- Safe parse: tolerate missing/incorrect Content-Type or empty body ---
     const raw = await req.text();
     let body: VapiPayload = {};
-    try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
+    try {
+        body = raw ? JSON.parse(raw) : {};
+    } catch {
+        body = {};
+    }
 
     // Vapi often wraps payload as { message: {...} }
     const msg: VapiPayload = body.message ?? body;
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (msg.type !== 'assistant-request') {
         return NextResponse.json(
             { error: 'unexpected message type', got: msg.type ?? null },
-            { status: 400 }
+            { status: 400 },
         );
     }
 
@@ -129,11 +139,11 @@ function buildAssistant(
         },
         name: 'Tomo',
         voice: {
-            model: "eleven_flash_v2_5",
-            voiceId: "aEO01A4wXwd1O8GPgGlF",
-            provider: "11labs",
+            model: 'eleven_flash_v2_5',
+            voiceId: 'aEO01A4wXwd1O8GPgGlF',
+            provider: '11labs',
             stability: 0.5,
-            similarityBoost: 0.75
+            similarityBoost: 0.75,
         },
         model: {
             provider: process.env.LLM_PROVIDER || 'google',
@@ -143,8 +153,10 @@ function buildAssistant(
     };
 
     if (overrides?.model?.model) assistant.model.model = overrides.model.model;
-    if (overrides?.voice?.voiceId) assistant.voice.voiceId = overrides.voice.voiceId;
-    if (typeof overrides?.firstMessage === 'string') assistant.firstMessage = overrides.firstMessage;
+    if (overrides?.voice?.voiceId)
+        assistant.voice.voiceId = overrides.voice.voiceId;
+    if (typeof overrides?.firstMessage === 'string')
+        assistant.firstMessage = overrides.firstMessage;
 
     return assistant;
 }
