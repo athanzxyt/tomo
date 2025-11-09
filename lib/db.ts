@@ -304,6 +304,19 @@ export type MomentInput = {
     summary: string;
 };
 
+function mapMomentRows(rows: MomentRow[] | null): MomentRecord[] {
+    if (!rows?.length) {
+        return [];
+    }
+
+    return rows.map((row) => ({
+        id: row.id,
+        period_year: row.period_year,
+        period_month: row.period_month,
+        summary: row.summary ?? '',
+    }));
+}
+
 export async function getRecentMoments(
     profileId: string,
     limit = 5,
@@ -327,14 +340,30 @@ export async function getRecentMoments(
         }
 
         const rows = (data as MomentRow[] | null) ?? [];
-        return rows.map((row) => ({
-            id: row.id,
-            period_year: row.period_year,
-            period_month: row.period_month,
-            summary: row.summary,
-        }));
+        return mapMomentRows(rows);
     } catch (error) {
         console.error('[db] Unexpected error loading moments', error);
+        return [];
+    }
+}
+
+export async function getLatestMoments(limit = 8): Promise<MomentRecord[]> {
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('moments')
+            .select('id, period_year, period_month, summary')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            console.error('[db] Failed to load latest moments', error);
+            return [];
+        }
+
+        return mapMomentRows((data as MomentRow[] | null) ?? []);
+    } catch (error) {
+        console.error('[db] Unexpected error loading latest moments', error);
         return [];
     }
 }

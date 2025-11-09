@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { CallLogRecord } from "@/lib/db";
+import type { CallLogRecord, MomentRecord } from "@/lib/db";
 
 const entries = [
   {
@@ -46,17 +46,27 @@ const entries = [
   },
 ];
 
-export default function HomePageClient({ calls }: { calls: CallLogRecord[] }) {
+export default function HomePageClient({
+  calls,
+  moments,
+}: {
+  calls: CallLogRecord[];
+  moments: MomentRecord[];
+}) {
   const [activeView, setActiveView] = useState<ViewValue>("calls");
-  const isCalls = activeView === "calls";
+  let panel = <CallsPanel calls={calls} />;
+
+  if (activeView === "entries") {
+    panel = <EntriesPanel />;
+  } else if (activeView === "moments") {
+    panel = <MomentsPanel moments={moments} />;
+  }
 
   return (
     <SidebarProvider>
       <AppSidebar activeView={activeView} onSelectView={setActiveView} />
       <SidebarInset>
-        <div className="flex flex-1 flex-col gap-6 p-6">
-          {isCalls ? <CallsPanel calls={calls} /> : <EntriesPanel />}
-        </div>
+        <div className="flex flex-1 flex-col gap-6 p-6">{panel}</div>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -135,6 +145,53 @@ function EntriesPanel() {
             <p className="mt-3 text-sm text-zinc-300">{entry.excerpt}</p>
           </article>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function MomentsPanel({ moments }: { moments: MomentRecord[] }) {
+  return (
+    <section className="space-y-4">
+      <h1 className="text-xl font-semibold text-white">Moments</h1>
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-925/70 shadow-inner shadow-black/40">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-zinc-400">Period</TableHead>
+              <TableHead className="text-zinc-400">Summary</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {moments.length ? (
+              moments.map((moment) => (
+                <TableRow
+                  key={moment.id}
+                  className="border-white/5 bg-transparent transition-colors hover:bg-white/10 focus-within:bg-white/10"
+                >
+                  <TableCell className="font-medium text-white">
+                    {formatMomentPeriod(
+                      moment.period_year,
+                      moment.period_month,
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-zinc-300 break-words whitespace-pre-wrap">
+                    {moment.summary?.trim() || "—"}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={2}
+                  className="py-6 text-center text-zinc-500"
+                >
+                  No moments yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </section>
   );
@@ -319,6 +376,23 @@ function formatCallTimestamp(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatMomentPeriod(year: number, month: number) {
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return "—";
+  }
+
+  const normalizedMonth = Math.min(Math.max(month, 1), 12) - 1;
+  const date = new Date(Date.UTC(year, normalizedMonth, 1));
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
 function parseTranscript(transcript: string) {
