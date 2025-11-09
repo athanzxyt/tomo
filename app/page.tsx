@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import type { PointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import memoirs from "@/public/memoirs.json";
@@ -274,16 +275,24 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <p className="text-xs uppercase tracking-[0.12em] text-zinc-400 sm:text-sm">
-            Call Tomo at{" "}
-            <a
-              href="tel:+14075657490"
-              className="text-yellow-500 transition hover:text-zinc-200"
+          <div className="flex flex-col gap-4 text-xs uppercase tracking-[0.12em] text-zinc-400 sm:flex-row sm:items-center sm:text-sm">
+            <Link
+              href="/signup"
+              className="rounded-md bg-white px-5 py-2 text-sm font-semibold capitalize tracking-normal text-zinc-900 transition hover:bg-zinc-100"
             >
-              +1 (407) 565 7490
-            </a>{" "}
-            to get started
-          </p>
+              Sign Up
+            </Link>
+            <p>
+              Call Tomo at{" "}
+              <a
+                href="tel:+14075657490"
+                className="text-yellow-500 transition hover:text-zinc-200"
+              >
+                +1 (407) 565 7490
+              </a>{" "}
+              to get started
+            </p>
+          </div>
         </div>
         <div className="flex flex-1 items-start justify-between lg:justify-end">
           <p className="max-w-md text-sm leading-tight text-zinc-300 sm:text-base">
