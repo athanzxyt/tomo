@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createConversationNoteFromTranscript } from "@/lib/conversation-notes";
 import { type CallLogInput, insertCallLog } from "@/lib/db";
 
 import type { VapiCall, VapiConversationTurn, VapiPayload } from "./types";
@@ -19,13 +20,19 @@ export async function handleEndOfCallReport(payload: VapiPayload) {
     );
   }
 
-  const saved = await insertCallLog(logPayload);
-  if (!saved) {
+  const { success, id: callLogId } = await insertCallLog(logPayload);
+  if (!success) {
     return NextResponse.json(
       { error: "failed to persist call log" },
       { status: 500 },
     );
   }
+
+  await createConversationNoteFromTranscript({
+    profileId: user.id,
+    callLogId: callLogId ?? undefined,
+    transcript: logPayload.transcript,
+  });
 
   return NextResponse.json({ ok: true });
 }

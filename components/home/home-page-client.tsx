@@ -253,7 +253,7 @@ function CallAudioPlayer({ audioUrl }: { audioUrl: string }) {
   const remaining = Math.max(duration - elapsed, 0);
   const remainingLabel = formatDuration(Math.round(remaining));
 
-  const handleSeek = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeek = (event: React.MouseEvent<HTMLButtonElement>) => {
     const audio = audioRef.current;
     if (!audio || !duration) {
       return;

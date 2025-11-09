@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import type { MinimalUser } from "@/lib/db";
+import { getRecentConversationNotes, type MinimalUser } from "@/lib/db";
 import { joinAsSystemMessage, loadPrompt, renderTemplate } from "@/lib/prompt";
 
 import type { VapiAssistant, VapiPayload } from "./types";
@@ -17,7 +17,14 @@ const EMPTY_USER: MinimalUser = {
 export async function handleAssistantRequest(payload: VapiPayload) {
   const user = (await findUserByCall(payload)) ?? EMPTY_USER;
   const hasUserContext = Boolean(user.id);
-  const systemContent = await buildSystemPrompt(user, hasUserContext);
+  const conversationNotes = hasUserContext
+    ? await getRecentConversationNotes(user.id, 3)
+    : [];
+  const systemContent = await buildSystemPrompt(
+    user,
+    hasUserContext,
+    conversationNotes,
+  );
 
   const assistant = buildAssistant(
     systemContent,
@@ -32,6 +39,7 @@ export async function handleAssistantRequest(payload: VapiPayload) {
 async function buildSystemPrompt(
   user: MinimalUser,
   hasUserContext: boolean,
+  notes: string[],
 ): Promise<string> {
   const basePrompt = await loadPrompt("base.md");
   const baseContent = renderTemplate(basePrompt, { user });
@@ -41,8 +49,20 @@ async function buildSystemPrompt(
   }
 
   const userPrompt = await loadPrompt("user_template.md");
-  const userContent = renderTemplate(userPrompt, { user });
+  const userContent = renderTemplate(userPrompt, {
+    user,
+    notes_block: formatConversationNotes(notes),
+  });
   return joinAsSystemMessage(baseContent, userContent);
+}
+
+function formatConversationNotes(notes: string[]): string {
+  if (!notes.length) {
+    return "";
+  }
+
+  const items = notes.map((note) => `- ${note.trim()}`).join("\n");
+  return `Recent follow-ups:\n${items}`;
 }
 
 function buildAssistant(

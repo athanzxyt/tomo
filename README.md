@@ -35,6 +35,12 @@ When Vapi sends one of the completion events (`call-finished`, `call.completed`,
 - `audio_url` (recording URL when available)
 - `transcript` (flattened text transcript when provided)
 
+When a transcript is available, we also summarize follow-up topics into `conversation_notes` so Tomo can reference them during future calls.
+
+### Gemini conversation notes
+
+Set `GEMINI_API_KEY` to enable the Gemini-powered summarization that populates `conversation_notes`. If this env var is missing, calls still succeed but no notes are created.
+
 ### Vapi Server URL
 
 Point your Vapi app's Server URL to `https://<domain>/api/vapi` (or `http://localhost:3000/api/vapi` while testing).

@@ -43,6 +43,16 @@ export type CallLogRecord = {
     transcript: string;
 };
 
+export type ConversationNoteInput = {
+    profile_id: string;
+    content: string;
+    call_log_id?: string | null;
+};
+
+type ConversationNoteRow = {
+    content: string | null;
+};
+
 export async function getUserByPhone(
     phoneInput: string,
 ): Promise<MinimalUser | null> {
@@ -106,18 +116,26 @@ function mapProfileRow(row: ProfileRow): MinimalUser {
     };
 }
 
-export async function insertCallLog(log: CallLogInput): Promise<boolean> {
+export async function insertCallLog(
+    log: CallLogInput,
+): Promise<{ success: boolean; id?: string }> {
     try {
         const client = getSupabaseServerClient();
-        const { error } = await client.from('call_logs').insert([log]);
+        const { data, error } = await client
+            .from('call_logs')
+            .insert([log])
+            .select('id')
+            .single();
+
         if (error) {
             console.error('[db] Failed to insert call log', { error });
-            return false;
+            return { success: false };
         }
-        return true;
+
+        return { success: true, id: data?.id ?? undefined };
     } catch (error) {
         console.error('[db] Unexpected error inserting call log', error);
-        return false;
+        return { success: false };
     }
 }
 
@@ -146,6 +164,71 @@ export async function getRecentCallLogs(limit = 10): Promise<CallLogRecord[]> {
         );
     } catch (error) {
         console.error('[db] Unexpected error loading call logs', error);
+        return [];
+    }
+}
+
+export async function insertConversationNote(
+    note: ConversationNoteInput,
+): Promise<boolean> {
+    const content = note.content?.trim();
+    if (!content) {
+        return false;
+    }
+
+    try {
+        const client = getSupabaseServerClient();
+        const { error } = await client.from('conversation_notes').insert([
+            {
+                profile_id: note.profile_id,
+                call_log_id: note.call_log_id ?? null,
+                content,
+            },
+        ]);
+
+        if (error) {
+            console.error('[db] Failed to insert conversation note', { error });
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error(
+            '[db] Unexpected error inserting conversation note',
+            error,
+        );
+        return false;
+    }
+}
+
+export async function getRecentConversationNotes(
+    profileId: string,
+    limit = 3,
+): Promise<string[]> {
+    try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+            .from('conversation_notes')
+            .select('content')
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) {
+            console.error('[db] Failed to load conversation notes', error);
+            return [];
+        }
+
+        return (
+            data
+                ?.map((row: ConversationNoteRow) => row.content?.trim())
+                .filter((content): content is string => Boolean(content)) ?? []
+        );
+    } catch (error) {
+        console.error(
+            '[db] Unexpected error loading conversation notes',
+            error,
+        );
         return [];
     }
 }
