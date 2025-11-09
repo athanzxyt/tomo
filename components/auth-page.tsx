@@ -128,8 +128,6 @@ export function AuthPage({
         throw new Error("Email and password are required.");
       }
 
-      let redirectFirstName = fallbackFirstName;
-
       if (variant === "signup") {
         const lastName = (formData.get("lastName")?.toString() ?? "").trim();
         const countryCode = (
@@ -179,17 +177,9 @@ export function AuthPage({
           await supabase.auth.signOut();
           throw new Error("Please verify your email before logging in.");
         }
-
-        const metadataFirstName =
-          (user.user_metadata?.firstName as string | undefined) ??
-          (user.user_metadata?.first_name as string | undefined);
-
-        if (metadataFirstName) {
-          redirectFirstName = metadataFirstName;
-        }
       }
 
-      router.push(`/home?firstName=${encodeURIComponent(redirectFirstName)}`);
+      router.push("/home");
     } catch (error) {
       const message =
         error instanceof Error

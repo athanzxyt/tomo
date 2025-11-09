@@ -50,13 +50,13 @@ function buildCallLogPayload(
   const durationSec = resolveDurationSeconds(payload, call);
   const audioUrl = resolveAudioUrl(payload, call);
   const transcript = extractTranscript(payload) ?? "";
-
+  const normalizedTranscript = normalizeTranscriptSpeakers(transcript);
   return {
     profile_id: profileId,
     started_at: startedAt,
     duration_sec: durationSec,
     audio_url: audioUrl,
-    transcript,
+    transcript: normalizedTranscript,
   };
 }
 
@@ -199,4 +199,12 @@ function stringifyArtifactMessages(
     .filter((part): part is string => Boolean(part));
 
   return parts.length ? parts.join(" ") : null;
+}
+
+function normalizeTranscriptSpeakers(transcript: string): string {
+  return transcript
+    .replace(/^AI:/gim, "Tomo:")
+    .replace(/^Assistant:/gim, "Tomo:")
+    .replace(/^Bot:/gim, "Tomo:")
+    .trim();
 }
