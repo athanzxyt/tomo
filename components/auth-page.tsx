@@ -3,7 +3,7 @@
 import * as FlagIcons from "country-flag-icons/react/3x2";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { ComponentType, FormEvent, SVGProps } from "react";
 import { useMemo, useState } from "react";
 
@@ -88,10 +88,15 @@ type FormStatus = {
   error: string | null;
 };
 
-export function AuthPage({ variant }: { variant: Variant }) {
+export function AuthPage({
+  variant,
+  statusParam,
+}: {
+  variant: Variant;
+  statusParam?: string;
+}) {
   const copy = content[variant];
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [status, setStatus] = useState<FormStatus>({
     loading: false,
@@ -105,7 +110,7 @@ export function AuthPage({ variant }: { variant: Variant }) {
     COUNTRY_OPTIONS[0];
   const SelectedFlag = getFlagIcon(selectedCountry.isoCode);
   const showVerifyNotice =
-    variant === "login" && searchParams.get("status") === "verify-email";
+    variant === "login" && statusParam === "verify-email";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -184,9 +189,7 @@ export function AuthPage({ variant }: { variant: Variant }) {
         }
       }
 
-      router.push(
-        `/dashboard?firstName=${encodeURIComponent(redirectFirstName)}`,
-      );
+      router.push(`/home?firstName=${encodeURIComponent(redirectFirstName)}`);
     } catch (error) {
       const message =
         error instanceof Error

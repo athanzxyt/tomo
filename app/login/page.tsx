@@ -1,5 +1,11 @@
 import { AuthPage } from "@/components/auth-page";
 
-export default function LoginPage() {
-  return <AuthPage variant="login" />;
+type LoginPageProps = {
+  searchParams: {
+    status?: string;
+  };
+};
+
+export default function LoginPage({ searchParams }: LoginPageProps) {
+  return <AuthPage variant="login" statusParam={searchParams?.status} />;
 }
